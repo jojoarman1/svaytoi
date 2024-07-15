@@ -1,25 +1,25 @@
 import logging
+import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.utils import executor
+from aiogram import executor
 
 API_TOKEN = '6505300772:AAHs9iuwSwHwmA_BfBpIJxAoFWiD3Ml0HYE'
-ADMIN_USER_ID = '1250100261'  # Замените на user_id администратора
-CHANNEL_LINK = 'https://t.me/+d5KJl1imPT1mNTAy'  # Замените на ссылку на закрытый канал
-# Настройка логирования
+ADMIN_USER_ID = '1250100261'
+CHANNEL_LINK = 'https://t.me/+oUbyj5JturphMGIy'
+CHANNEL_ID = -1002244000979
+
 logging.basicConfig(level=logging.INFO)
 
-# Инициализация бота и диспетчера
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 dp.middleware.setup(LoggingMiddleware())
 
 
-# Определение состояний
 class Form(StatesGroup):
     name = State()
     age = State()
@@ -30,14 +30,14 @@ class Form(StatesGroup):
 
 
 blocked_users = set()
+pending_subscriptions = {}
 
 
-# Начало диалога
 @dp.message_handler(commands='start')
 async def cmd_start(message: types.Message):
     if message.from_user.id in blocked_users:
         await bot.send_message(message.from_user.id, "Вы уже прошли тестирование и не подходите по интересам и "
-                                                     "профилю для участия в сообществе.")
+                                                     "профилю для участия в сообществе Проводников Света.")
         return
 
     await Form.name.set()
@@ -79,8 +79,8 @@ async def process_city(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['city'] = message.text
     await Form.next()
-    keyboard = yes_no_keyboard()
-    await bot.send_message(message.from_user.id, "Оказываете ли вы духовную помощь людям?", reply_markup=keyboard)
+    await bot.send_message(message.from_user.id, "Оказываете ли вы духовную помощь людям?",
+                           reply_markup=yes_no_keyboard())
 
 
 @dp.callback_query_handler(lambda c: c.data in ['Да', 'Нет'], state=Form.spiritual_help)
@@ -89,21 +89,17 @@ async def process_spiritual_help_callback(callback_query: types.CallbackQuery, s
     await state.update_data(spiritual_help=data)
 
     if data == "Нет":
-        await bot.edit_message_text("К сожалению, вы не подходите по интересам и профилю для участия в сообществе "
-                                    "Проводников Света. Благодарим за уделенное время!",
-                                    chat_id=callback_query.message.chat.id,
-                                    message_id=callback_query.message.message_id)
+        await bot.edit_message_text(
+            "К сожалению, вы не подходите по интересам и профилю для участия в сообществе Проводников Света. "
+            "Благодарим за уделенное время!",
+            chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
         blocked_users.add(callback_query.from_user.id)
         await state.finish()
         return
 
     await Form.next()
-    keyboard = directions_keyboard()  # Изменяем клавиатуру для следующего вопроса
-    await bot.edit_message_text("В каком направлении вы работаете?",
-                                chat_id=callback_query.message.chat.id,
-                                message_id=callback_query.message.message_id,
-                                reply_markup=keyboard)
-
+    await bot.edit_message_text("В каком направлении вы работаете?", chat_id=callback_query.message.chat.id,
+                                message_id=callback_query.message.message_id, reply_markup=directions_keyboard())
 
 
 @dp.callback_query_handler(
@@ -115,21 +111,18 @@ async def process_directions_callback(callback_query: types.CallbackQuery, state
     await state.update_data(directions=data)
 
     if data == "Не указано мое направление":
-        await bot.edit_message_text("К сожалению, вы не подходите по интересам и профилю для участия в сообществе "
-                                    "Проводников Света. Благодарим за уделенное время!",
-                                    chat_id=callback_query.message.chat.id,
-                                    message_id=callback_query.message.message_id)
+        await bot.edit_message_text(
+            "К сожалению, вы не подходите по интересам и профилю для участия в сообществе Проводников Света. "
+            "Благодарим за уделенное время!",
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.message_id)
         blocked_users.add(callback_query.from_user.id)
         await state.finish()
         return
 
     await Form.next()
-    keyboard = power_source_keyboard()
-    await bot.edit_message_text("Кто или что является источником вашей силы?",
-                                chat_id=callback_query.message.chat.id,
-                                message_id=callback_query.message.message_id,
-                                reply_markup=keyboard)
-
+    await bot.edit_message_text("Кто или что является источником вашей силы?", chat_id=callback_query.message.chat.id,
+                                message_id=callback_query.message.message_id, reply_markup=power_source_keyboard())
 
 
 @dp.callback_query_handler(lambda c: c.data in ['Бог (Абсолют)', 'Собственный дух', 'Любовь (Божественный Свет)',
@@ -140,9 +133,10 @@ async def process_power_source_callback(callback_query: types.CallbackQuery, sta
     await state.update_data(power_source=data)
 
     if data == "Не указан источник моей силы":
-        await bot.edit_message_text("К сожалению, вы не подходите по интересам и профилю для участия в сообществе Проводников Света. Благодарим за уделенное время!",
-                                    chat_id=callback_query.message.chat.id,
-                                    message_id=callback_query.message.message_id)
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text="К сожалению, вы не подходите по интересам и профилю для участия в сообществе "
+                                         "Проводников Света. Благодарим за уделенное время!")
         blocked_users.add(callback_query.from_user.id)
         await state.finish()
         return
@@ -151,6 +145,7 @@ async def process_power_source_callback(callback_query: types.CallbackQuery, sta
         user_data = {
             "username": callback_query.from_user.username,
             "name": data['name'],
+            "surname": callback_query.from_user.last_name or '',
             "age": data['age'],
             "city": data['city'],
             "spiritual_help": data['spiritual_help'],
@@ -163,17 +158,18 @@ async def process_power_source_callback(callback_query: types.CallbackQuery, sta
         join_button = types.InlineKeyboardButton(text="Вступить в сообщество", url=CHANNEL_LINK)
         join_keyboard = types.InlineKeyboardMarkup().add(join_button)
 
-        await bot.edit_message_text(f"{data['name']}, поздравляем! Теперь вы можете стать участником сообщества "
-                                    f"Проводников Света.",
-                                    chat_id=callback_query.message.chat.id,
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
                                     message_id=callback_query.message.message_id,
+                                    text=f"{data['name']}, поздравляем! Теперь вы можете стать участником сообщества "
+                                         f"Проводников Света.",
                                     reply_markup=join_keyboard)
+
+    # Добавление пользователя в список ожидания подписки
+    pending_subscriptions[callback_query.from_user.id] = callback_query
 
     await state.finish()
 
 
-
-# Регистрация обработчика "Назад" для каждого состояния
 @dp.callback_query_handler(lambda c: c.data == 'Назад', state=Form.age)
 @dp.callback_query_handler(lambda c: c.data == 'Назад', state=Form.city)
 @dp.callback_query_handler(lambda c: c.data == 'Назад', state=Form.spiritual_help)
@@ -217,7 +213,6 @@ async def process_back_button_callback(callback_query: types.CallbackQuery, stat
                                "Вы находитесь в начале опроса. Нажмите 'Старт', чтобы начать заново.")
 
 
-# Клавиатуры
 def back_button_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton(text="Назад", callback_data="Назад"))
@@ -228,13 +223,11 @@ def yes_no_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     buttons = [
         types.InlineKeyboardButton(text="Да", callback_data="Да"),
-        types.InlineKeyboardButton(text="Нет", callback_data="Нет"),
-        types.InlineKeyboardButton(text="Назад", callback_data="Назад")
+        types.InlineKeyboardButton(text="Нет", callback_data="Нет")
     ]
-
     for button in buttons:
         keyboard.add(button)
-
+    keyboard.add(types.InlineKeyboardButton(text="Назад", callback_data="Назад"))
     return keyboard
 
 
@@ -251,7 +244,6 @@ def directions_keyboard():
         types.InlineKeyboardButton(text="Гипноз", callback_data="Гипноз"),
         types.InlineKeyboardButton(text="Не указано мое направление", callback_data="Не указано мое направление")
     ]
-
     for button in buttons:
         keyboard.add(button)
     keyboard.add(types.InlineKeyboardButton(text="Назад", callback_data="Назад"))
@@ -266,18 +258,17 @@ def power_source_keyboard():
         types.InlineKeyboardButton(text="Любовь (Божественный Свет)", callback_data="Любовь (Божественный Свет)"),
         types.InlineKeyboardButton(text="Не указан источник моей силы", callback_data="Не указан источник моей силы")
     ]
-
     for button in buttons:
         keyboard.add(button)
     keyboard.add(types.InlineKeyboardButton(text="Назад", callback_data="Назад"))
     return keyboard
 
 
-# Форматирование данных пользователя для отправки администратору
 def format_user_data(user_data):
     return (f"Новый пользователь:\n"
             f"Username: {user_data['username']}\n"
             f"Имя: {user_data['name']}\n"
+            f"Фамилия: {user_data.get('surname', 'Не указана')}\n"  # Добавлено
             f"Возраст: {user_data['age']}\n"
             f"Город: {user_data['city']}\n"
             f"Духовная помощь: {user_data['spiritual_help']}\n"
@@ -285,16 +276,28 @@ def format_user_data(user_data):
             f"Источник силы: {user_data['power_source']}")
 
 
-@dp.message_handler(content_types=types.ContentType.NEW_CHAT_MEMBERS)
-async def new_chat_members(message: types.Message):
-    for member in message.new_chat_members:
-        user_name = member.username if member.username else member.first_name
-        welcome_message = (
-            f"@{user_name}, приветствуем вас в сообществе Проводников Света ❤️\n"
-            "Пожалуйста, напишите несколько слов о себе и дайте ссылку на свой сайт 🙏🏻"
-        )
-        await bot.send_message(message.chat.id, welcome_message)
+async def check_subscription():
+    while True:
+        for user_id, callback_query in list(pending_subscriptions.items()):
+            try:
+                chat_member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+                if chat_member.status in ['member']:
+                    user = chat_member.user
+                    if user.username:
+                        username = f"@{user.username}"
+                    else:
+                        username = f"@ {user.first_name} {user.last_name or ''}".strip()
+
+                    welcome_message = (f"{username}, приветствуем вас в сообществе Проводников Света ❤️ Пожалуйста, "
+                                       f"нажмите на кнопку 💬 и напишите несколько слов о себе 🙏🏻")
+                    await bot.send_message(CHANNEL_ID, welcome_message)
+                    del pending_subscriptions[user_id]
+            except Exception as e:
+                logging.error(f"Failed to check subscription status for user_id {user_id}. Error: {e}")
+        await asyncio.sleep(10)
 
 
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.create_task(check_subscription())
     executor.start_polling(dp, skip_updates=True)
